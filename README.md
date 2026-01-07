@@ -2,6 +2,17 @@ json_exporter
 ========================
 [![CircleCI](https://circleci.com/gh/prometheus-community/json_exporter.svg?style=svg)](https://circleci.com/gh/prometheus-community/json_exporter)
 
+> [!IMPORTANT]
+>
+> This is a supported replacement of the original [prometheus-community/json_exporter](https://github.com/prometheus-community/json_exporter) repository.
+>
+> Community contributions are not being accepted at this time. The documentation has been carried over directly from the original repository and may not reflect recent changes.
+>
+> We will make a best-effort attempt to address publicly known security vulnerabilities, including CVEs in dependencies and certain source code vulnerabilities when remediation can be achieved safely and with minimal risk. If mitigating a vulnerability would require extensive code changes (for example, adapting to a new API or significant refactoring), we will generally not make that change in order to avoid introducing regressions.
+>
+> Interested in a CVE-free container image of this project? [Contact Chainguard](https://www.chainguard.dev/contact).
+---
+
 A [prometheus](https://prometheus.io/) exporter which scrapes remote JSON by JSONPath.
 
 - [Supported JSONPath Syntax](https://kubernetes.io/docs/reference/kubectl/jsonpath/)

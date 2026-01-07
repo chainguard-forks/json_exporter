@@ -1,0 +1,145 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - "Makefile.common"
+      - "Dockerfile"
+      - ".promu.yml"
+      - ".github/workflows/ci.yml"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: 1.25.x
+
+      - name: Run tests
+        run: make test
+
+      - name: Build binary
+        run: make build
+
+  example-usage:
+    name: Example Usage Test
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: 1.25.x
+
+      - name: Setup
+        run: |
+          make build
+          ./json_exporter --config.file examples/config.yml &
+          python3 -m http.server 8000 &
+          sleep 3
+
+      - name: Test with 'default' module
+        run: |
+          curl -sf "http://localhost:7979/probe?module=default&target=http://localhost:8000/examples/data.json" > /tmp/default_output.txt
+          cat /tmp/default_output.txt
+          grep -q 'example_global_value{environment="beta",location="planet-mars"} 1234' /tmp/default_output.txt
+          grep -q 'example_timestamped_value_count{environment="beta"} 2' /tmp/default_output.txt
+          grep -q 'example_value_active{environment="beta",id="id-A"} 1' /tmp/default_output.txt
+          grep -q 'example_value_count{environment="beta",id="id-C"} 3' /tmp/default_output.txt
+
+      - name: Test with 'animals' module
+        run: |
+          curl -sf "http://localhost:7979/probe?module=animals&target=http://localhost:8000/examples/animal-data.json" > /tmp/animals_output.txt
+          cat /tmp/animals_output.txt
+          grep -q 'animal_population{name="deer",predator="false"} 456' /tmp/animals_output.txt
+          grep -q 'animal_population{name="lion",predator="true"} 123' /tmp/animals_output.txt
+          grep -q 'animal_population{name="pigeon",predator="false"} 789' /tmp/animals_output.txt
+
+      - name: Test through Prometheus
+        run: |
+          docker run -d --name prometheus_test \
+            --network host \
+            -v $PWD/examples/prometheus.yml:/etc/prometheus/prometheus.yml \
+            prom/prometheus
+          sleep 10
+          # Verify Prometheus can reach the exporter
+          curl -sf http://localhost:9090/api/v1/targets | grep -q "json_exporter"
+          docker stop prometheus_test
+
+  docker:
+    name: Build and Test Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.25.x
+
+      - name: Build binary for Docker
+        run: make promu && promu crossbuild -p linux/amd64
+
+      - name: Build Docker image
+        run: make docker DOCKER_ARCHS=amd64
+
+      - name: Setup test environment
+        run: |
+          python3 -m http.server 8000 &
+          sleep 2
+          docker run -d --name json_exporter_test \
+            --network host \
+            -v $PWD/examples/config.yml:/config.yml \
+            prometheuscommunity/json-exporter-linux-amd64:$(git rev-parse --abbrev-ref HEAD | tr / -) \
+            --config.file=/config.yml
+          sleep 5
+
+      - name: Test Docker image with 'default' module
+        run: |
+          curl -sf "http://localhost:7979/probe?module=default&target=http://localhost:8000/examples/data.json" > /tmp/default_output.txt
+          cat /tmp/default_output.txt
+          grep -q 'example_global_value{environment="beta",location="planet-mars"} 1234' /tmp/default_output.txt
+          grep -q 'example_timestamped_value_count{environment="beta"} 2' /tmp/default_output.txt
+          grep -q 'example_value_active{environment="beta",id="id-A"} 1' /tmp/default_output.txt
+          grep -q 'example_value_count{environment="beta",id="id-C"} 3' /tmp/default_output.txt
+
+      - name: Test Docker image with 'animals' module
+        run: |
+          curl -sf "http://localhost:7979/probe?module=animals&target=http://localhost:8000/examples/animal-data.json" > /tmp/animals_output.txt
+          cat /tmp/animals_output.txt
+          grep -q 'animal_population{name="deer",predator="false"} 456' /tmp/animals_output.txt
+          grep -q 'animal_population{name="lion",predator="true"} 123' /tmp/animals_output.txt
+          grep -q 'animal_population{name="pigeon",predator="false"} 789' /tmp/animals_output.txt
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop json_exporter_test || true
+          docker rm json_exporter_test || true

@@ -36,7 +36,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
 
       - name: Run tests
         run: make test
@@ -62,7 +62,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
 
       - name: Setup
         run: |
@@ -117,7 +117,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
 
       - name: Build binary for Docker
         run: make promu && promu crossbuild -p linux/amd64
